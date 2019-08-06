@@ -23,6 +23,7 @@ The code is compilable on Unix/Linux and hopefully on Mac OS (not tested!).
 **Dependencies:** 
 For image i/o we use [Enric Meinhardt's iio](https://github.com/mnhrdt/iio),
 which requires libpng, libtiff and libjpeg.
+We also use [StatsLib](https://www.kthohr.com/statslib.html) library.
  
 Configure and compile the source code using cmake and make.  It is recommended
 that you create a folder for building:
