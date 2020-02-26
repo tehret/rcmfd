@@ -3841,7 +3841,7 @@ void iio_save_image_uint8_matrix(char *filename, uint8_t **data, int w, int h)
 	iio_save_image_default(filename, x);
 }
 
-void iio_save_image_float_vec(char *filename, float *data,
+void iio_save_image_float_vec(const char *filename, float *data,
 		int w, int h, int pd)
 {
 	struct iio_image x[1];

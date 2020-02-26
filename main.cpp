@@ -31,7 +31,7 @@ extern "C"{
  * @param im: image corresponding to the matches
  * @param matchings: list of matches to draw on the image
  **/
-void write_images_matches(int channels, std::vector<float>& im,int w, int h, Matchingslist& matchings)
+void write_images_matches(int channels, std::vector<float>& im,int w, int h, Matchingslist& matchings, string output)
 {
     int sq = 2;
 
@@ -66,7 +66,7 @@ void write_images_matches(int channels, std::vector<float>& im,int w, int h, Mat
     for(int j = 0; j < (int) h; j++)
     for(int i = 0; i < (int) w; i++)
         rgb[j*w*3+i*3+c] = outimg[c][j*w+i];
-    iio_save_image_float_vec("output.png", rgb, w, h, 3);
+    iio_save_image_float_vec(output.c_str(), rgb, w, h, 3);
 
     delete[] rgb;
     for(int c=0;c<3;c++)
@@ -83,6 +83,7 @@ int main(int argc, char **argv)
 	using std::string;
 	string input_path = clo_option("-im"    , "" , "< Input image");
 	string output_path = clo_option("-o"    , "data_matches.csv" , "> Output file containing the matches");
+	string visual_output_path = clo_option("-vo"    , "output.png" , "> Output file containing the matches");
 
 	// Parameters for the matching
 	int ps = clo_option("-ps", 8, "< Patch size for the descriptor");
@@ -130,7 +131,7 @@ int main(int argc, char **argv)
     Matchingslist matchings;
     vector< float > data;
     perform_matching(c, image, w, h, data, matchings, ps, tau, automatic);
-    write_images_matches(c, image, w, h, matchings);
+    write_images_matches(c, image, w, h, matchings, visual_output_path);
 
     // Save results
     ofstream myfile;

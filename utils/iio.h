@@ -263,7 +263,7 @@ struct iio_image *iio_image_build(int dimension, int *sizes,
 
 #include <stdint.h>
 
-void iio_save_image_float_vec(char *filename, float *x, int w, int h, int pd);
+void iio_save_image_float_vec(const char *filename, float *x, int w, int h, int pd);
 void iio_save_image_float_split(char *filename, float *x, int w, int h, int pd);
 void iio_save_image_double_vec(char *filename, double *x, int w, int h, int pd);
 void iio_save_image_float(char *filename, float *x, int w, int h);
