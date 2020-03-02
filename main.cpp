@@ -73,6 +73,47 @@ void write_images_matches(int channels, std::vector<float>& im,int w, int h, Mat
         delete[] outimg[c];
 }
 
+/**
+ * @brief Creates an image showing the matches provided
+ *
+ * @param w,h,channels: size of the image (respectively width, height and channels)
+ * @param im: image corresponding to the matches
+ * @param matchings: list of matches to draw on the image
+ **/
+void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string output)
+{
+
+    float * outmask = new float[w*h];
+
+    for(int i=0; i < w*h; ++i)
+        outmask[i] = 0;
+
+    // Draw matches in red onto the grayscale output
+    for(int i=0; i < (int) matchings.size(); i++)
+    {
+
+        // Draw the square of the first descriptor
+        int sq = (int)(matchings[i].first.scale * ps)/2;
+        for(int xx = round(matchings[i].first.x)-sq; xx < round(matchings[i].first.x)+sq; ++xx) 
+        for(int yy = round(matchings[i].first.y)-sq; yy < round(matchings[i].first.y)+sq; ++yy) 
+        {
+            outmask[xx + w*yy] = 255.;
+        }
+        // Draw the square of the second descripor
+        sq = (int)(matchings[i].second.scale * ps)/2;
+        for(int xx = round(matchings[i].second.x)-sq; xx < round(matchings[i].second.x)+sq; ++xx) 
+        for(int yy = round(matchings[i].second.y)-sq; yy < round(matchings[i].second.y)+sq; ++yy) 
+        {
+            outmask[xx + w*yy] = 255.;
+        }
+
+    }
+
+    iio_save_image_float_vec(output.c_str(), outmask, w, h, 1);
+
+    delete[] outmask;
+}
+
 int main(int argc, char **argv)
 {
 	// Read parameters
@@ -83,7 +124,8 @@ int main(int argc, char **argv)
 	using std::string;
 	string input_path = clo_option("-im"    , "" , "< Input image");
 	string output_path = clo_option("-o"    , "data_matches.csv" , "> Output file containing the matches");
-	string visual_output_path = clo_option("-vo"    , "output.png" , "> Output file containing the matches");
+	string visual_output_path = clo_option("-vo"    , "" , "> Output file containing the matches");
+	string mask_output_path = clo_option("-mo"    , "" , "> Output file containing the mask");
 
 	// Parameters for the matching
 	int ps = clo_option("-ps", 8, "< Patch size for the descriptor");
@@ -131,7 +173,11 @@ int main(int argc, char **argv)
     Matchingslist matchings;
     vector< float > data;
     perform_matching(c, image, w, h, data, matchings, ps, tau, automatic);
-    write_images_matches(c, image, w, h, matchings, visual_output_path);
+    if (visual_output_path != "") 
+        write_images_matches(c, image, w, h, matchings, visual_output_path);
+
+    if (mask_output_path != "") 
+        write_image_mask(ps, w, h, matchings, mask_output_path);
 
     // Save results
     ofstream myfile;
