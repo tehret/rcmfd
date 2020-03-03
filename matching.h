@@ -23,6 +23,7 @@
 #include "stats/stats.hpp"
 
 #define FILTER_RADIUS 4
+#define NOTDEF -1024.0
 
 /************* DATATYPES ********************/
 

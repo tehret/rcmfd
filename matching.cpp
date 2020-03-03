@@ -188,6 +188,9 @@ bool patch_comparison(double * grad_x_1, double * grad_y_1, double * grad_x_2, d
             for(int x = 1; x < ps-1; ++x)
             {
                 double dist;
+                // Check whether patches are well defined
+                if(grad_x_1[x+y*ps+c*ps*ps] == NOTDEF || grad_x_2[x+y*ps+c*ps*ps] == NOTDEF)
+                    return false;
                 if(flip)
                     dist = (grad_x_1[x+(ps-y-1)*ps+c*ps*ps] - grad_x_2[x+y*ps+c*ps*ps])*(grad_x_1[x+(ps-y-1)*ps+c*ps*ps] - grad_x_2[x+y*ps+c*ps*ps]) + 
                         (grad_y_1[x+(ps-y-1)*ps+c*ps*ps] + grad_y_2[x+y*ps+c*ps*ps])*(grad_y_1[x+(ps-y-1)*ps+c*ps*ps] + grad_y_2[x+y*ps+c*ps*ps]);
@@ -226,6 +229,10 @@ int compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchin
         for(int i1 = 0; i1 < (int)keys[idx1]->KPvec.size() && !stopped; ++i1)
         for(int i2 = 0; i2 < (int)keys[idx2]->KPvec.size(); ++i2)
         {
+            // Check overlapping descriptors
+            if(std::sqrt((keys[idx1]->x - keys[idx2]->x)*(keys[idx1]->x - keys[idx2]->x) + (keys[idx1]->y - keys[idx2]->y)*(keys[idx1]->y - keys[idx2]->y)) < ps/2*(keys[idx1]->KPvec[i1].scale + keys[idx2]->KPvec[i2].scale))
+                continue;
+
             // Try to match both descriptors and when one if flipped 
             if(patch_comparison(
                         static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->gradx,
@@ -281,7 +288,7 @@ void perform_matching(int channels, vector<float>& image, int w, int h, vector<f
     // Match keypoints
     int nb_matches = compute_matches(channels, keys, matchings, ps, tau, automatic);
 
-    // Generate data matrix: tehre are eight rows of info
+    // Generate data matrix: there are eight rows of info
     for ( int i = 0; i < (int) matchings.size(); i++ )
     {
         Matching *ptr_in = &(matchings[i]);
