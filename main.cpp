@@ -74,10 +74,9 @@ void write_images_matches(int channels, std::vector<float>& im,int w, int h, Mat
 }
 
 /**
- * @brief Creates an image showing the matches provided
+ * @brief Creates a mask image
  *
- * @param w,h,channels: size of the image (respectively width, height and channels)
- * @param im: image corresponding to the matches
+ * @param w,h: size of the image (respectively width, height and channels)
  * @param matchings: list of matches to draw on the image
  **/
 void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string output)
@@ -94,15 +93,15 @@ void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string out
 
         // Draw the square of the first descriptor
         int sq = (int)(matchings[i].first.scale * ps)/2;
-        for(int xx = round(matchings[i].first.x)-sq; xx < round(matchings[i].first.x)+sq; ++xx) 
-        for(int yy = round(matchings[i].first.y)-sq; yy < round(matchings[i].first.y)+sq; ++yy) 
+        for(int xx = std::max((int)round(matchings[i].first.x)-sq, 0); xx < std::min((int)round(matchings[i].first.x)+sq, w); ++xx) 
+        for(int yy = std::max((int)round(matchings[i].first.y)-sq, 0); yy < std::max((int)round(matchings[i].first.y)+sq, h); ++yy) 
         {
             outmask[xx + w*yy] = 255.;
         }
         // Draw the square of the second descripor
         sq = (int)(matchings[i].second.scale * ps)/2;
-        for(int xx = round(matchings[i].second.x)-sq; xx < round(matchings[i].second.x)+sq; ++xx) 
-        for(int yy = round(matchings[i].second.y)-sq; yy < round(matchings[i].second.y)+sq; ++yy) 
+        for(int xx = std::max((int)round(matchings[i].second.x)-sq, 0); xx < std::min((int)round(matchings[i].second.x)+sq, w); ++xx) 
+        for(int yy = std::max((int)round(matchings[i].second.y)-sq, 0); yy < std::max((int)round(matchings[i].second.y)+sq, h); ++yy) 
         {
             outmask[xx + w*yy] = 255.;
         }
