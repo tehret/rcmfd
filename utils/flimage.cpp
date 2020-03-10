@@ -124,11 +124,11 @@ void flimage::erase()
 void flimage::update(float* im) 
 {
 
-    for(int i = 0, k = 0; i < height; ++i) 
+    for(int i = 0; i < height; ++i) 
     for(int j = 0; j < width; ++j) 
     {
         float v = 0.;
-        for(int c = 0; c < channels; ++c, ++k)
+        for(int c = 0; c < channels; ++c)
         {
             p[i*width+j+c*width*height] = im[i*width+j+c*width*height];
             v += im[i*width+j+c*width*height];

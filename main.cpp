@@ -12,6 +12,7 @@
 
 #include <string>
 #include <vector>
+#include <stack>
 #include <iostream>
 #include <fstream>
 #include <stdio.h>
@@ -22,6 +23,8 @@
 extern "C"{
 #include "utils/iio.h"
 }
+#include "utils/filter.h"
+#include "utils/sift.h"
 
 
 /**
@@ -74,7 +77,7 @@ void write_images_matches(int channels, std::vector<float>& im,int w, int h, Mat
 }
 
 /**
- * @brief Creates a mask image
+ * @brief Creates a mask image (outdated very simple regions)
  *
  * @param w,h: size of the image (respectively width, height and channels)
  * @param matchings: list of matches to draw on the image
@@ -112,6 +115,88 @@ void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string out
 
     delete[] outmask;
 }
+
+//int maskConnectedComponent(unsigned entry, float th, float* mask, float* b1, float* b2, int w, int h, int c)
+//{
+//	std::vector<bool> visited(w*h, false);
+//	std::stack<unsigned> stack;
+//
+//    int count = 1;
+//    mask[entry] = 255;
+//    visited[entry] = true;
+//
+//    stack.push(entry);
+//    while(!stack.empty())
+//    {
+//        unsigned index = stack.top();
+//        stack.pop();
+//
+//        unsigned a,b;
+//        a = index % w;
+//        b = index / w;
+//
+//        // Define the list of the neighbors used to compute the component
+//        std::vector<std::pair<int,int>> neighbors{{a+1,b},{a-1,b},{a,b+1},{a,b-1}};
+//
+//        for(auto n : neighbors) 
+//        {
+//            bool test = true;
+//            for(int ch = 0; ch < c; ++ch)
+//                if(std::abs(b1[n.first + w*n.second + ch*w*h] - b2[n.first + w*n.second + ch*w*h]) > th)
+//                    test = false;
+//            // Add the possible neighbors to the current component
+//            if((n.first >= 0) && (n.second >= 0) && (n.first < w) && (n.second < h) && !visited[n.first + w*n.second] && test)
+//            {
+//                mask[n.first + w*n.second] = 255;
+//                visited[n.first + w*n.second] = true;
+//                stack.push(n.first + w*n.second);
+//                count++;
+//            }
+//        }
+//    }
+//	return count;
+//}
+//
+//void write_image_mask(int ps, double th, std::vector<float> image, int w, int h, int c, Matchingslist& matchings, string output)
+//{
+//    float * outmask = new float[w*h];
+//
+//    for(int i=0; i < w*h; ++i)
+//        outmask[i] = 0;
+//
+//    for(int i=0; i < matchings.size(); ++i)
+//    {
+//        printf("doing %d out of %d\n", i, matchings.size());
+//        // blur im with scale1
+//        float* blurred1 = gaussian_convolution(image.data(), w, h, c, matchings[i].first.scale);
+//        // blur im with scale2
+//        float* blurred2 = gaussian_convolution(image.data(), w, h, c, matchings[i].second.scale);
+//        // resample 2 on 1 
+//        float* blurred2r = (float *) malloc( w * h * c * sizeof(float) );
+//        float step =  matchings[i].second.scale / matchings[i].first.scale;
+//        float theta = matchings[i].second.angle - matchings[i].first.angle;
+//        float dx = step * cos(theta);
+//        float dy = step * sin(theta);
+//
+//        for(int x = 0; x < w; ++x)
+//        for(int y = 0; y < h; ++y)
+//        {
+//            float x_sample = dx * (x - matchings[i].second.x) - dy * (y - matchings[i].second.y) + matchings[i].first.x;
+//            float y_sample = dy * (x - matchings[i].second.x) + dx * (y - matchings[i].second.y) + matchings[i].first.y;
+//            for(int ch = 0; ch < c; ++ch)
+//                blurred2r[x+y*w+ch*w*h] = interpolation(blurred2,w,h,x_sample,y_sample,ch);
+//        }
+//        // Compute the falsified region
+//        maskConnectedComponent(matchings[i].first.x + w*matchings[i].first.y, th, outmask, blurred1, blurred2r, w, h, c);
+//        
+//        free(blurred1);
+//        free(blurred2);
+//        free(blurred2r);
+//    }
+//
+//    iio_save_image_float_vec(output.c_str(), outmask, w, h, 1);
+//    delete[] outmask;
+//}
 
 int main(int argc, char **argv)
 {
@@ -171,11 +256,12 @@ int main(int argc, char **argv)
     // Perform matching
     Matchingslist matchings;
     vector< float > data;
-    perform_matching(c, image, w, h, data, matchings, ps, tau, automatic);
+    double threshold = perform_matching(c, image, w, h, data, matchings, ps, tau, automatic);
     if (visual_output_path != "") 
         write_images_matches(c, image, w, h, matchings, visual_output_path);
 
     if (mask_output_path != "") 
+        //write_image_mask(ps, threshold, image, w, h, c, matchings, mask_output_path);
         write_image_mask(ps, w, h, matchings, mask_output_path);
 
     // Save results

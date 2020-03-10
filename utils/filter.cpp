@@ -88,7 +88,7 @@ float* gaussian_convolution(float * image, int X, int Y, int C, float sigma)
                   while(j>=nx2) j -= nx2;
                   if( j >= X ) j = nx2-1-j;
 
-                  val += image[j+y*X] * kernel[i];
+                  val += image[j+y*X+c*X*Y] * kernel[i];
               }
               tmp[x+y*X] = val;
           }

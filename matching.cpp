@@ -28,6 +28,11 @@ void compute_local_descriptor_keypoints(vector<float>& queryImg, int w, int h, i
     // Compute keypoints
     compute_sift_keypoints(queryImg.data(), *keys, w, h, c, siftparameters);
 
+    float* outimg = new float[w*h];
+    for(int j = 0; j < (int) h; j++)
+    for(int i = 0; i < (int) w; i++)
+        outimg[j*w+i] = (c > 1) ? (queryImg[j*w+i] + queryImg[1*w*h+j*w+i] + queryImg[2*w*h+j*w+i])/3. : queryImg[j*w+i];
+
     // Save keypoints into a different structure
     KPs.resize(keys->size());
     for(int i=0; i<(int)keys->size();i++)
@@ -37,6 +42,9 @@ void compute_local_descriptor_keypoints(vector<float>& queryImg, int w, int h, i
         KPs[i].kp_ptr = &((*keys)[i]);
         KPs[i].scale = (*keys)[i].scale;
         KPs[i].angle = (*keys)[i].angle;
+
+        int sq = (int)(KPs[i].scale * ps / 2);
+        draw_square(outimg,  round(KPs[i].x)-sq, round(KPs[i].y)-sq, 2*sq, 2*sq, 255, w, h);
     }
 }
 
@@ -189,7 +197,7 @@ bool patch_comparison(double * grad_x_1, double * grad_y_1, double * grad_x_2, d
             {
                 double dist;
                 // Check whether patches are well defined
-                if(grad_x_1[x+y*ps+c*ps*ps] == NOTDEF || grad_x_2[x+y*ps+c*ps*ps] == NOTDEF)
+                if(grad_x_1[x+y*ps+c*ps*ps] == NOTDEF || grad_x_2[x+y*ps+c*ps*ps] == NOTDEF || grad_y_1[x+y*ps+c*ps*ps] == NOTDEF || grad_y_2[x+y*ps+c*ps*ps] == NOTDEF)
                     return false;
                 if(flip)
                     dist = (grad_x_1[x+(ps-y-1)*ps+c*ps*ps] - grad_x_2[x+y*ps+c*ps*ps])*(grad_x_1[x+(ps-y-1)*ps+c*ps*ps] - grad_x_2[x+y*ps+c*ps*ps]) + 
@@ -205,7 +213,7 @@ bool patch_comparison(double * grad_x_1, double * grad_y_1, double * grad_x_2, d
     return true;
 }
 
-int compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchings, int ps, float epsilon, bool automatic)
+double compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchings, int ps, float epsilon, bool automatic)
 {  	
     int tstart = time(0);
     printf("Keypoints matching...\n");
@@ -213,7 +221,7 @@ int compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchin
     double tau;
     // Automatic estimation of the threshold if necessary
     if(automatic)
-        tau = 2*stats::qchisq(pow(exp(epsilon)/(keys.size()*keys.size()), 1./(ps*ps*c)), 1);
+        tau = 2*stats::qchisq(pow(exp(epsilon)/(keys.size()*keys.size()), 1./((ps-2)*(ps-2)*c)), 1);
     else
         tau = epsilon;
 
@@ -233,19 +241,25 @@ int compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchin
             if(std::sqrt((keys[idx1]->x - keys[idx2]->x)*(keys[idx1]->x - keys[idx2]->x) + (keys[idx1]->y - keys[idx2]->y)*(keys[idx1]->y - keys[idx2]->y)) < ps/2*(keys[idx1]->KPvec[i1].scale + keys[idx2]->KPvec[i2].scale))
                 continue;
 
+            double sigma2 = 1;
+            if(automatic)
+            {
+               sigma2 = std::min(sigma2,std::min(static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->var, static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->var)); 
+            }
+
             // Try to match both descriptors and when one if flipped 
             if(patch_comparison(
                         static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->gradx,
                         static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->grady,
                         static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->gradx,
                         static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->grady,
-                        ps, c, tau, false) ||
+                        ps, c, sigma2*tau, false) ||
                     patch_comparison(
                         static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->gradx,
                         static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->grady,
                         static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->gradx,
                         static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->grady,
-                        ps, c, tau, true))
+                        ps, c, sigma2*tau, true))
             {
                 Keypoint_simple k1, k2;
 
@@ -268,10 +282,11 @@ int compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchin
 
     printf("   %d matches found.\n", (int) matchings.size());
     printf("Matching accomplished in %ld seconds.\n\n", (time(0) - tstart));
-    return matchings.size();
+    return tau;
 }
 
-void perform_matching(int channels, vector<float>& image, int w, int h, vector<float>& data, Matchingslist& matchings, int ps, float tau, bool automatic)
+
+double perform_matching(int channels, vector<float>& image, int w, int h, vector<float>& data, Matchingslist& matchings, int ps, float tau, bool automatic)
 {
     // Compute keypoints
     std::vector<KeyPoints*> keys;
@@ -286,7 +301,7 @@ void perform_matching(int channels, vector<float>& image, int w, int h, vector<f
 
 
     // Match keypoints
-    int nb_matches = compute_matches(channels, keys, matchings, ps, tau, automatic);
+    double threshold = compute_matches(channels, keys, matchings, ps, tau, automatic);
 
     // Generate data matrix: there are eight rows of info
     for ( int i = 0; i < (int) matchings.size(); i++ )
@@ -303,10 +318,11 @@ void perform_matching(int channels, vector<float>& image, int w, int h, vector<f
     }
     printf("Done.\n\n");
 
-    if(nb_matches > 0)
+    if(matchings.size() > 0)
         printf("This image IS forged\n");
     else
         printf("This image IS NOT forged\n");
 
     keys.clear();
+    return threshold;
 }

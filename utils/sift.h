@@ -90,6 +90,7 @@ struct keypoint_base {
     float	x,y,
         scale, radius,
         angle;
+    double var;
     float	vec[IndexSize * IndexSize * OriSize];
     double* gradangle;
     double* gradmod;
@@ -278,6 +279,10 @@ void default_sift_parameters(siftPar &par);
 std::vector<int> random_inds(int amount);
 
 void compute_sift_keypoints(float *input,  keypointslist& keypoints,int width, int height, int channels, siftPar &par);
+
+//////////////////////////////////
+
+double interpolation(float * image, int X, int Y, double x, double y, int ch);
 
 #endif // _LIBSIFT_H_
 
