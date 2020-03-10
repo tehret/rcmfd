@@ -42,9 +42,6 @@ void compute_local_descriptor_keypoints(vector<float>& queryImg, int w, int h, i
         KPs[i].kp_ptr = &((*keys)[i]);
         KPs[i].scale = (*keys)[i].scale;
         KPs[i].angle = (*keys)[i].angle;
-
-        int sq = (int)(KPs[i].scale * ps / 2);
-        draw_square(outimg,  round(KPs[i].x)-sq, round(KPs[i].y)-sq, 2*sq, 2*sq, 255, w, h);
     }
 }
 
