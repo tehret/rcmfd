@@ -95,20 +95,16 @@ void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string out
     {
 
         // Draw the square of the first descriptor
-        int sq = (int)(matchings[i].first.scale * ps)/2;
+        int sq = (int)(matchings[i].first.scale * ps/2);
         for(int xx = std::max((int)round(matchings[i].first.x)-sq, 0); xx < std::min((int)round(matchings[i].first.x)+sq, w); ++xx) 
-        for(int yy = std::max((int)round(matchings[i].first.y)-sq, 0); yy < std::max((int)round(matchings[i].first.y)+sq, h); ++yy) 
-        {
+        for(int yy = std::max((int)round(matchings[i].first.y)-sq, 0); yy < std::min((int)round(matchings[i].first.y)+sq, h); ++yy) 
             outmask[xx + w*yy] = 255.;
-        }
-        // Draw the square of the second descripor
-        sq = (int)(matchings[i].second.scale * ps)/2;
-        for(int xx = std::max((int)round(matchings[i].second.x)-sq, 0); xx < std::min((int)round(matchings[i].second.x)+sq, w); ++xx) 
-        for(int yy = std::max((int)round(matchings[i].second.y)-sq, 0); yy < std::max((int)round(matchings[i].second.y)+sq, h); ++yy) 
-        {
-            outmask[xx + w*yy] = 255.;
-        }
 
+        // Draw the square of the second descripor
+        sq = (int)(matchings[i].second.scale * ps/2);
+        for(int xx = std::max((int)round(matchings[i].second.x)-sq, 0); xx < std::min((int)round(matchings[i].second.x)+sq, w); ++xx) 
+        for(int yy = std::max((int)round(matchings[i].second.y)-sq, 0); yy < std::min((int)round(matchings[i].second.y)+sq, h); ++yy) 
+            outmask[xx + w*yy] = 255.;
     }
 
     iio_save_image_float_vec(output.c_str(), outmask, w, h, 1);
@@ -116,9 +112,8 @@ void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string out
     delete[] outmask;
 }
 
-//int maskConnectedComponent(unsigned entry, float th, float* mask, float* b1, float* b2, int w, int h, int c)
+//int maskConnectedComponent(unsigned entry, float th, float* mask, float* b1, float* b2, int w, int h, int c, std::vector<bool>& visited)
 //{
-//	std::vector<bool> visited(w*h, false);
 //	std::stack<unsigned> stack;
 //
 //    int count = 1;
@@ -139,20 +134,21 @@ void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string out
 //        std::vector<std::pair<int,int>> neighbors{{a+1,b},{a-1,b},{a,b+1},{a,b-1}};
 //
 //        for(auto n : neighbors) 
-//        {
-//            bool test = true;
-//            for(int ch = 0; ch < c; ++ch)
-//                if(std::abs(b1[n.first + w*n.second + ch*w*h] - b2[n.first + w*n.second + ch*w*h]) > th)
-//                    test = false;
 //            // Add the possible neighbors to the current component
-//            if((n.first >= 0) && (n.second >= 0) && (n.first < w) && (n.second < h) && !visited[n.first + w*n.second] && test)
+//            if((n.first >= 0) && (n.second >= 0) && (n.first < w) && (n.second < h))
 //            {
-//                mask[n.first + w*n.second] = 255;
-//                visited[n.first + w*n.second] = true;
-//                stack.push(n.first + w*n.second);
-//                count++;
+//                bool test = true;
+//                for(int ch = 0; ch < c; ++ch)
+//                    if(std::abs(b1[n.first + w*n.second + ch*w*h] - b2[n.first + w*n.second + ch*w*h]) > th)
+//                        test = false;
+//                if(!visited[n.first + w*n.second] && test)
+//                {
+//                    mask[n.first + w*n.second] = 255;
+//                    visited[n.first + w*n.second] = true;
+//                    stack.push(n.first + w*n.second);
+//                    count++;
+//                }
 //            }
-//        }
 //    }
 //	return count;
 //}
@@ -160,15 +156,20 @@ void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string out
 //void write_image_mask(int ps, double th, std::vector<float> image, int w, int h, int c, Matchingslist& matchings, string output)
 //{
 //    float * outmask = new float[w*h];
+//    float * test = new float[w*h*c];
 //
 //    for(int i=0; i < w*h; ++i)
 //        outmask[i] = 0;
+//	std::vector<bool> visited(w*h, false);
 //
+//    printf("th %f\n", th);
 //    for(int i=0; i < matchings.size(); ++i)
 //    {
 //        printf("doing %d out of %d\n", i, matchings.size());
+//
+//        // 2 -> 1
 //        // blur im with scale1
-//        float* blurred1 = gaussian_convolution(image.data(), w, h, c, matchings[i].first.scale);
+//        float* blurred1 = image.data();
 //        // blur im with scale2
 //        float* blurred2 = gaussian_convolution(image.data(), w, h, c, matchings[i].second.scale);
 //        // resample 2 on 1 
@@ -181,16 +182,45 @@ void write_image_mask(int ps, int w, int h, Matchingslist& matchings, string out
 //        for(int x = 0; x < w; ++x)
 //        for(int y = 0; y < h; ++y)
 //        {
+//            float x_sample = dx * (x - matchings[i].first.x) - dy * (y - matchings[i].first.y) + matchings[i].second.x;
+//            float y_sample = dy * (x - matchings[i].first.x) + dx * (y - matchings[i].first.y) + matchings[i].second.y;
+//            for(int ch = 0; ch < c; ++ch)
+//                blurred2r[x+y*w+ch*w*h] = interpolation(blurred2,w,h,x_sample,y_sample,ch);
+//        }
+//        // Compute the falsified region
+//        maskConnectedComponent((int)(std::round(matchings[i].first.x) + w*std::round(matchings[i].first.y)), th, outmask, blurred1, blurred2r, w, h, c, visited);
+//
+//        
+//        //free(blurred1);
+//        free(blurred2);
+//        free(blurred2r);
+//
+//        // 1 -> 2
+//        // blur im with scale1
+//        blurred1 = gaussian_convolution(image.data(), w, h, c, matchings[i].first.scale);
+//        // blur im with scale2
+//        blurred2 = gaussian_convolution(image.data(), w, h, c, matchings[i].second.scale);
+//        // resample 2 on 1 
+//        blurred2r = (float *) malloc( w * h * c * sizeof(float) );
+//        step =  matchings[i].first.scale / matchings[i].second.scale;
+//        theta = matchings[i].first.angle - matchings[i].second.angle;
+//        dx = step * cos(theta);
+//        dy = step * sin(theta);
+//
+//        for(int x = 0; x < w; ++x)
+//        for(int y = 0; y < h; ++y)
+//        {
 //            float x_sample = dx * (x - matchings[i].second.x) - dy * (y - matchings[i].second.y) + matchings[i].first.x;
 //            float y_sample = dy * (x - matchings[i].second.x) + dx * (y - matchings[i].second.y) + matchings[i].first.y;
 //            for(int ch = 0; ch < c; ++ch)
 //                blurred2r[x+y*w+ch*w*h] = interpolation(blurred2,w,h,x_sample,y_sample,ch);
 //        }
 //        // Compute the falsified region
-//        maskConnectedComponent(matchings[i].first.x + w*matchings[i].first.y, th, outmask, blurred1, blurred2r, w, h, c);
+//        maskConnectedComponent((int)(std::round(matchings[i].second.x) + w*std::round(matchings[i].second.y)), th, outmask, blurred1, blurred2r, w, h, c, visited);
+//
 //        
-//        free(blurred1);
-//        free(blurred2);
+//        //free(blurred1);
+//        //free(blurred2);
 //        free(blurred2r);
 //    }
 //
