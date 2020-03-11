@@ -232,7 +232,7 @@ void write_image_mask(int ps, double th, std::vector<float> image, int w, int h,
             float x_sample = dx * (x - matchings[i].first.x) - dy * (y - matchings[i].first.y) + matchings[i].second.x;
             float y_sample = dy * (x - matchings[i].first.x) + dx * (y - matchings[i].first.y) + matchings[i].second.y;
             for(int ch = 0; ch < c; ++ch)
-                resamp[x+y*w+ch*w*h] = interpolation(image.data(),w,h,x_sample,y_sample,ch);
+                resamp[x+y*w+ch*w*h] = interpolation(image.data(),w,h,x_sample,y_sample,ch) - (image[(int)(std::round(matchings[i].second.x) + w*std::round(matchings[i].second.y))] - image[(int)(std::round(matchings[i].first.x) + w*std::round(matchings[i].first.y))]);
         }
         // Compute the falsified region
         maskConnectedComponent((int)(std::round(matchings[i].first.x) + w*std::round(matchings[i].first.y)), th, outmask, image.data(), resamp, w, h, c, visited);
@@ -249,7 +249,7 @@ void write_image_mask(int ps, double th, std::vector<float> image, int w, int h,
             float x_sample = dx * (x - matchings[i].second.x) - dy * (y - matchings[i].second.y) + matchings[i].first.x;
             float y_sample = dy * (x - matchings[i].second.x) + dx * (y - matchings[i].second.y) + matchings[i].first.y;
             for(int ch = 0; ch < c; ++ch)
-                resamp[x+y*w+ch*w*h] = interpolation(image.data(),w,h,x_sample,y_sample,ch);
+                resamp[x+y*w+ch*w*h] = interpolation(image.data(),w,h,x_sample,y_sample,ch) - (image[(int)(std::round(matchings[i].first.x) + w*std::round(matchings[i].first.y))] - image[(int)(std::round(matchings[i].second.x) + w*std::round(matchings[i].second.y))]);
         }
         // Compute the falsified region
         maskConnectedComponent((int)(std::round(matchings[i].second.x) + w*std::round(matchings[i].second.y)), th, outmask, image.data(), resamp, w, h, c, visited);
