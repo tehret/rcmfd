@@ -15,5 +15,15 @@ endif()
 
 message(${CMAKE_CXX_FLAGS})
 
+include_directories(inverse_compositional)
+add_library(inverseCompositional SHARED
+    inverse_compositional/matrix.cpp
+    inverse_compositional/transformation.cpp
+    inverse_compositional/bicubic_interpolation.cpp
+    inverse_compositional/zoom.cpp
+    inverse_compositional/mask.cpp
+    inverse_compositional/inverse_compositional_algorithm.cpp
+    )
+
 add_executable(main main.cpp matching.cpp utils/drawing.cpp utils/numerics1.cpp utils/utils.cpp utils/flimage.cpp utils/filter.cpp utils/sift.cpp utils/iio.c)
-TARGET_LINK_LIBRARIES(main png tiff jpeg)
+TARGET_LINK_LIBRARIES(main png tiff jpeg inverseCompositional)
