@@ -58,6 +58,8 @@ typedef std::vector<KeyPoint> Keypointlist;
  */
 struct Keypoint_simple {
     float x, y, scale, angle;
+    float mean[3];
+    bool flipped;
 };
 
 /**

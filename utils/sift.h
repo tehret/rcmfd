@@ -90,7 +90,7 @@ struct keypoint_base {
     float	x,y,
         scale, radius,
         angle;
-    double var;
+    double mean[3];
     float	vec[IndexSize * IndexSize * OriSize];
     double* gradangle;
     double* gradmod;

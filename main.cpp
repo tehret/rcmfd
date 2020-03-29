@@ -25,7 +25,10 @@ extern "C"{
 }
 #include "utils/filter.h"
 #include "utils/sift.h"
+#include "inverse_compositional_algorithm.h"
 
+#define PSIZE 49
+#define PSIZE2 49
 
 /**
  * @brief Creates an image showing the matches provided
@@ -34,9 +37,9 @@ extern "C"{
  * @param im: image corresponding to the matches
  * @param matchings: list of matches to draw on the image
  **/
-void write_images_matches(int channels, std::vector<float>& im,int w, int h, Matchingslist& matchings, string output)
+void write_images_matches(int channels, std::vector<float>& im, int ps, int w, int h, Matchingslist& matchings, string output)
 {
-    int sq = 2;
+    int sq;
 
     std::vector<float *> outimg;
     for(int c=0;c<3;c++)
@@ -59,7 +62,9 @@ void write_images_matches(int channels, std::vector<float>& im,int w, int h, Mat
                       round(matchings[i].second.x), round(matchings[i].second.y), value, w, h);
 
             // Draw both squares corresponding the position of the keypoints (not taking into account the scale nor the orientation)
+            sq = (int)(matchings[i].first.scale * ps/2);
             draw_square(outimg[c],  round(matchings[i].first.x)-sq, round(matchings[i].first.y)-sq, 2*sq, 2*sq, value, w, h);
+            sq = (int)(matchings[i].second.scale * ps/2);
             draw_square(outimg[c],  round(matchings[i].second.x)-sq, round(matchings[i].second.y)-sq, 2*sq, 2*sq, value, w, h);
     }
 
@@ -112,155 +117,207 @@ void write_images_matches(int channels, std::vector<float>& im,int w, int h, Mat
 //    delete[] outmask;
 //}
 
-int maskConnectedComponent(unsigned entry, float th, float* mask, float* b1, float* b2, int w, int h, int c, std::vector<bool>& visited)
+int maskConnectedComponent(unsigned entry, float th, float* mask, float* b1, float* b2, int w, int h, int c, int* visited, int ref)
 {
 	std::stack<unsigned> stack;
 
-    int count = 1;
-    mask[entry] = 255;
-    visited[entry] = true;
+    float varim = 0;
+    float vardiff = 0;
 
-    stack.push(entry);
+    // Compute the variance of the patches
+    unsigned a,b;
+    a = entry % w;
+    b = entry / w;
+    for(int x = a-PSIZE2/2; x <= a+PSIZE2/2; ++x)
+    for(int y = b-PSIZE2/2; y <= b+PSIZE2/2; ++y)
+    for(int ch = 0; ch < c; ++ch)
+    {
+        varim += b1[x + y*w + ch*w*h];
+        vardiff += b2[x + y*w + ch*w*h];
+    }
+    varim /= PSIZE2*PSIZE2*c;
+    vardiff /= PSIZE2*PSIZE2*c;
+
+    if(vardiff < varim)
+    {
+        stack.push(entry);
+        for(int x = a-PSIZE2/2; x <= a+PSIZE2/2; ++x)
+        for(int y = b-PSIZE2/2; y <= b+PSIZE2/2; ++y)
+            mask[x + y*w] = 255;
+    } 
+
     while(!stack.empty())
     {
         unsigned index = stack.top();
         stack.pop();
 
-        unsigned a,b;
         a = index % w;
         b = index / w;
 
         // Define the list of the neighbors used to compute the component
-        std::vector<std::pair<int,int>> neighbors{{a+1,b},{a-1,b},{a,b+1},{a,b-1}};
+        std::vector<std::pair<int,int>> neighbors{{a+PSIZE2/2+1,b},{a-PSIZE2/2-1,b},{a,b+PSIZE2/2+1},{a,b-PSIZE2/2-1}};
 
         for(auto n : neighbors) 
-            // Add the possible neighbors to the current component
-            if((n.first >= 0) && (n.second >= 0) && (n.first < w) && (n.second < h))
-            {
-                bool test = true;
-                for(int ch = 0; ch < c; ++ch)
-                    if(std::abs(b1[n.first + w*n.second + ch*w*h] - b2[n.first + w*n.second + ch*w*h]) > th)
-                        test = false;
-                if(!visited[n.first + w*n.second] && test)
+        {
+            if((n.first-PSIZE2/2 >= 0) && (n.second-PSIZE2/2 >= 0) && (n.first+PSIZE2/2 < w) && (n.second+PSIZE2/2 < h))
+                if(visited[n.first + w*n.second] <= ref)
                 {
-                    mask[n.first + w*n.second] = 255;
-                    visited[n.first + w*n.second] = true;
-                    stack.push(n.first + w*n.second);
-                    count++;
+                    visited[n.first + w*n.second] = ref+1;
+                    if(mask[n.first + w*n.second] == 0)
+                    {
+                        
+                        varim = 0;
+                        vardiff = 0;
+
+                        for(int x = a-PSIZE2/2; x <= a+PSIZE2/2; ++x)
+                            for(int y = b-PSIZE2/2; y <= b+PSIZE2/2; ++y)
+                                for(int ch = 0; ch < c; ++ch)
+                                {
+                                    varim += b1[x + y*w + ch*w*h];
+                                    vardiff += b2[x + y*w + ch*w*h];
+                                }
+                        varim /= PSIZE2*PSIZE2*c;
+                        vardiff /= PSIZE2*PSIZE2*c;
+
+                        if(vardiff < varim)
+                        {
+                            stack.push(entry);
+                            for(int x = n.first-PSIZE2/2; x <= n.first+PSIZE2/2; ++x)
+                                for(int y = n.second-PSIZE2/2; y <= n.second+PSIZE2/2; ++y)
+                                    mask[x + y*w] = 255;
+                            stack.push(n.first + w*n.second);
+                        } 
+                    }
+                    else
+                        stack.push(n.first + w*n.second);
+
                 }
-            }
+        }
     }
-	return count;
-}
-
-int computeCircularDomain(std::vector<bool>& domain, int radius)
-{
-	int width = (2*radius+1);
-	domain.resize(width*width, false);
-
-	int radius2 = radius*radius;
-	int sizeDomain = 0;
-
-	for(int x = 0; x < width; ++x)
-	for(int y = 0; y < width; ++y)
-	{
-		// Test if the position is in the disk define by the radius
-		if((x-radius)*(x-radius)+(y-radius)*(y-radius) <= radius2)
-		{
-			domain[x+width*y] = true;
-			sizeDomain++;
-		}
-	}
-	return sizeDomain;
-}
-
-void dilationFilter(float* mask, int w, int h, int radius)
-{
-	float* backup = (float*) malloc(w*h*sizeof(float));
-    for(int i = 0; i < w*h; ++i)
-        backup[i] = mask[i];
-
-	std::vector<bool> domain;
-	computeCircularDomain(domain, radius);
-
-	int widthDomain = 2*radius+1;
-
-	for(unsigned id = 0; id < w*h; ++id)
-	{
-		int px = id % w;
-		int py = id / w;
-
-		// if a pixel contains a detection at a distance smaller than radius then set the current pixel to a detection
-		for(int x = std::max(px-radius,0), dx = x-px+radius; x < std::min(px+radius+1, w); ++x, ++dx) 
-		{
-			if(mask[id] > 0)
-				break;
-
-			for(int y = std::max(py-radius,0), dy = y-py+radius; y < std::min(py+radius+1, h); ++y, ++dy) 
-			{
-				if(domain[dx+widthDomain*dy] && backup[x + w*y] > 0)
-				{
-					mask[id] = 255;
-					break;
-				}
-			}
-		}
-	}
 }
 
 void write_image_mask(int ps, double th, std::vector<float> image, int w, int h, int c, Matchingslist& matchings, string output)
 {
     float * outmask = new float[w*h];
+    int * visited = new int[w*h];
 
     for(int i=0; i < w*h; ++i)
+    {
         outmask[i] = 0;
+        visited[i] = 0;
+    }
 
-	std::vector<bool> visited(w*h, false);
+    float* imgrad = (float *) malloc(w * h * c * sizeof(float) );
+    float* resamp = (float *) malloc(w * h * c * sizeof(float) );
+    float* diffgrad = (float *) malloc(w * h * c * sizeof(float) );
+    float ddiff;
+    for(int x = 1; x < w-1; ++x)
+    for(int y = 1; y < h-1; ++y)
+    for(int ch = 0; ch < c; ++ch)
+            imgrad[x+y*w+ch*w*h] = (ddiff= (0.5 * (image[(x+1)+y*w+ch*w*h] - image[(x-1)+y*w+ch*w*h])))*ddiff + (ddiff= (0.5 * (image[x+(y+1)*w+ch*w*h] - image[x+(y-1)*w+ch*w*h])))*ddiff;
 
     for(int i=0; i < matchings.size(); ++i)
     {
-        float* resamp = (float *) malloc( w * h * c * sizeof(float) );
-        // resample 2 on 1 
+        printf("Mask for match %d\n", i);
+        // Extract patches
         float step =  matchings[i].second.scale / matchings[i].first.scale;
-        float theta = matchings[i].second.angle - matchings[i].first.angle;
+        double* patch1 = (double *) malloc(PSIZE * PSIZE * c * sizeof(double) );
+        double* patch2 = (double *) malloc(PSIZE * PSIZE * c * sizeof(double) );
+        bool flipped = matchings[i].second.flipped;
+        for(int x = 0; x < PSIZE; ++x)
+        for(int y = 0; y < PSIZE; ++y)
+        for(int ch = 0; ch < c; ++ch)
+        {
+                patch1[ch+x*c+y*PSIZE*c] = image[(x-PSIZE/2 + (int)std::round(matchings[i].first.x))+(y-PSIZE/2 + (int)std::round(matchings[i].first.y))*w+ch*w*h] - matchings[i].first.mean[ch];
+                patch2[ch+x*c+y*PSIZE*c] = interpolation(image.data(),w,h, (flipped?(PSIZE/2 - x-1):(x-PSIZE/2))*step + (int)std::round(matchings[i].second.x),(y-PSIZE/2)*step + (int)std::round(matchings[i].second.y),ch) - matchings[i].second.mean[ch];
+        }
+
+        // Register the local patches
+        int nparams = 3;
+        double* p = new double[3];
+        p[0]=0;p[1]=0;p[2]=0;
+        pyramidal_inverse_compositional_algorithm(
+           patch1, patch2, p, nparams, PSIZE, PSIZE, c,
+           2, 0.5, 0.001, 3, 0., 0, 1,
+           5, 3, 0
+        );
+
+        // resample 2 on 1 
+        float theta = p[2];
         float dx = step * cos(theta);
         float dy = step * sin(theta);
 
         for(int x = 0; x < w; ++x)
         for(int y = 0; y < h; ++y)
         {
-            float x_sample = dx * (x - matchings[i].first.x) - dy * (y - matchings[i].first.y) + matchings[i].second.x;
-            float y_sample = dy * (x - matchings[i].first.x) + dx * (y - matchings[i].first.y) + matchings[i].second.y;
+            float x_sample;
+            if(flipped)
+                x_sample = dx * (matchings[i].first.x + PSIZE/2 - x-1) - dy * (y - matchings[i].first.y + PSIZE/2) + matchings[i].second.x - step*(PSIZE/2) - p[0];
+            else
+                x_sample = dx * (x-matchings[i].first.x + PSIZE/2) - dy * (y - matchings[i].first.y + PSIZE/2) + matchings[i].second.x - step*(PSIZE/2) + p[0];
+            float y_sample = dy * (flipped?(matchings[i].first.x + PSIZE/2 - x-1):(x-matchings[i].first.x + PSIZE/2)) + dx * (y - matchings[i].first.y + PSIZE/2) + matchings[i].second.y - step*(PSIZE/2) + p[1];
             for(int ch = 0; ch < c; ++ch)
-                resamp[x+y*w+ch*w*h] = interpolation(image.data(),w,h,x_sample,y_sample,ch) - (image[(int)(std::round(matchings[i].second.x) + w*std::round(matchings[i].second.y))] - image[(int)(std::round(matchings[i].first.x) + w*std::round(matchings[i].first.y))]);
+                resamp[x+y*w+ch*w*h] = interpolation(image.data(),w,h,x_sample,y_sample,ch);
         }
-        // Compute the falsified region
-        maskConnectedComponent((int)(std::round(matchings[i].first.x) + w*std::round(matchings[i].first.y)), th, outmask, image.data(), resamp, w, h, c, visited);
 
-        // resample 1 on 2 
+        for(int x = 1; x < w-1; ++x)
+        for(int y = 1; y < h-1; ++y)
+        for(int ch = 0; ch < c; ++ch)
+                diffgrad[x+y*w+ch*w*h] = (ddiff= (0.5 * (image[(x+1)+y*w+ch*w*h] - image[(x-1)+y*w+ch*w*h]) - 0.5 * (resamp[(x+1)+y*w+ch*w*h] - resamp[(x-1)+y*w+ch*w*h])))*ddiff + (ddiff= (0.5 * (image[x+(y+1)*w+ch*w*h] - image[x+(y-1)*w+ch*w*h]) - 0.5 * (resamp[x+(y+1)*w+ch*w*h] - resamp[x+(y-1)*w+ch*w*h])))*ddiff;
+
+        // Compute the falsified region
+        maskConnectedComponent((int)(std::round(matchings[i].first.x) + w*std::round(matchings[i].first.y)), th, outmask, imgrad, diffgrad, w, h, c, visited, i);
+
         step =  matchings[i].first.scale / matchings[i].second.scale;
-        theta = matchings[i].first.angle - matchings[i].second.angle;
+        for(int x = 0; x < PSIZE; ++x)
+        for(int y = 0; y < PSIZE; ++y)
+        for(int ch = 0; ch < c; ++ch)
+        {
+                patch1[ch+x*c+y*PSIZE*c] = image[(x-PSIZE/2 + (int)std::round(matchings[i].second.x))+(y-PSIZE/2 + (int)std::round(matchings[i].second.y))*w+ch*w*h] - matchings[i].second.mean[ch];
+                patch2[ch+x*c+y*PSIZE*c] = interpolation(image.data(),w,h, (flipped?(PSIZE/2 - x-1):(x-PSIZE/2))*step + (int)std::round(matchings[i].first.x),(y-PSIZE/2)*step + (int)std::round(matchings[i].first.y),ch) - matchings[i].first.mean[ch];
+        }
+
+        // Register the local patches
+        p[0]=0;p[1]=0;p[2]=0;
+        pyramidal_inverse_compositional_algorithm(
+           patch1, patch2, p, nparams, PSIZE, PSIZE, c,
+           2, 0.5, 0.001, 3, 0., 0, 1,
+           5, 3, 0
+        );
+
+        // resample 2 on 1 
+        theta = p[2];
         dx = step * cos(theta);
         dy = step * sin(theta);
 
         for(int x = 0; x < w; ++x)
         for(int y = 0; y < h; ++y)
         {
-            float x_sample = dx * (x - matchings[i].second.x) - dy * (y - matchings[i].second.y) + matchings[i].first.x;
-            float y_sample = dy * (x - matchings[i].second.x) + dx * (y - matchings[i].second.y) + matchings[i].first.y;
+            float x_sample;
+            if(flipped)
+                x_sample = dx * (matchings[i].second.x + PSIZE/2 - x-1) - dy * (y - matchings[i].second.y + PSIZE/2) + matchings[i].first.x - step*(PSIZE/2) - p[0];
+            else
+                x_sample = dx * (x-matchings[i].second.x + PSIZE/2) - dy * (y - matchings[i].second.y + PSIZE/2) + matchings[i].first.x - step*(PSIZE/2) + p[0];
+            float y_sample = dy * (flipped?(matchings[i].second.x + PSIZE/2 - x-1):(x-matchings[i].second.x + PSIZE/2)) + dx * (y - matchings[i].second.y + PSIZE/2) + matchings[i].first.y - step*(PSIZE/2) + p[1];
             for(int ch = 0; ch < c; ++ch)
-                resamp[x+y*w+ch*w*h] = interpolation(image.data(),w,h,x_sample,y_sample,ch) - (image[(int)(std::round(matchings[i].first.x) + w*std::round(matchings[i].first.y))] - image[(int)(std::round(matchings[i].second.x) + w*std::round(matchings[i].second.y))]);
+                resamp[x+y*w+ch*w*h] = interpolation(image.data(),w,h,x_sample,y_sample,ch);
         }
+
+        for(int x = 1; x < w-1; ++x)
+        for(int y = 1; y < h-1; ++y)
+        for(int ch = 0; ch < c; ++ch)
+                diffgrad[x+y*w+ch*w*h] = (ddiff= (0.5 * (image[(x+1)+y*w+ch*w*h] - image[(x-1)+y*w+ch*w*h]) - 0.5 * (resamp[(x+1)+y*w+ch*w*h] - resamp[(x-1)+y*w+ch*w*h])))*ddiff + (ddiff= (0.5 * (image[x+(y+1)*w+ch*w*h] - image[x+(y-1)*w+ch*w*h]) - 0.5 * (resamp[x+(y+1)*w+ch*w*h] - resamp[x+(y-1)*w+ch*w*h])))*ddiff;
+
         // Compute the falsified region
-        maskConnectedComponent((int)(std::round(matchings[i].second.x) + w*std::round(matchings[i].second.y)), th, outmask, image.data(), resamp, w, h, c, visited);
+        maskConnectedComponent((int)(std::round(matchings[i].second.x) + w*std::round(matchings[i].second.y)), th, outmask, imgrad, diffgrad, w, h, c, visited, i);
 
-        free(resamp);
     }
-
-    dilationFilter(outmask, w, h, 5);
 
     iio_save_image_float_vec(output.c_str(), outmask, w, h, 1);
     delete[] outmask;
+    free(imgrad);
+    free(diffgrad);
+    free(resamp);
 }
 
 int main(int argc, char **argv)
@@ -323,7 +380,7 @@ int main(int argc, char **argv)
     vector< float > data;
     double threshold = perform_matching(c, image, w, h, data, matchings, ps, tau, automatic);
     if (visual_output_path != "") 
-        write_images_matches(c, image, w, h, matchings, visual_output_path);
+        write_images_matches(c, image, ps, w, h, matchings, visual_output_path);
 
     if (mask_output_path != "") 
         write_image_mask(ps, threshold, image, w, h, c, matchings, mask_output_path);

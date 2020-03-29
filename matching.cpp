@@ -11,6 +11,10 @@
  */
 
 #include "matching.h"
+extern "C"{
+#include "utils/iio.h"
+}
+#include "utils/drawing.h"
 
 #define ABS(x)    (((x) > 0) ? (x) : (-(x)))
 
@@ -42,7 +46,11 @@ void compute_local_descriptor_keypoints(vector<float>& queryImg, int w, int h, i
         KPs[i].kp_ptr = &((*keys)[i]);
         KPs[i].scale = (*keys)[i].scale;
         KPs[i].angle = (*keys)[i].angle;
+
+        draw_square(outimg, (int)KPs[i].x, (int)KPs[i].y, (int)(ps/2 * KPs[i].scale), (int)(ps/2 * KPs[i].scale), 0, w, h);
     }
+    iio_save_image_float_vec("keys.tiff", outimg, w, h, 1);
+
 }
 
 void add_keypoint(Keypointlist& keys, std::vector<KeyPoints*>& mapKP, int width, int height)
@@ -210,6 +218,16 @@ bool patch_comparison(double * grad_x_1, double * grad_y_1, double * grad_x_2, d
     return true;
 }
 
+void save(double* patch, int ps, int c, char* path)
+{
+    double* out = new double[(ps-2)*(ps-2)*c];
+    for(int x=1; x<(ps-1); ++x)
+    for(int y=1; y<(ps-1); ++y)
+    for(int ch=0; ch<c; ++ch)
+        out[(y-1)*(ps-2)*c+(x-1)*c+ch] = patch[x + y*ps + ch*ps*ps];
+    iio_save_image_double_vec(path, out, ps-2, ps-2, c);
+}
+
 double compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchings, int ps, float epsilon, bool automatic)
 {  	
     int tstart = time(0);
@@ -221,6 +239,7 @@ double compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matc
         tau = 2*stats::qchisq(pow(exp(epsilon)/(keys.size()*keys.size()), 1./((ps-2)*(ps-2)*c)), 1);
     else
         tau = epsilon;
+    printf("tau %f\n", tau);
 
     // Test every pair of descriptors
     for (int idx1 = 0; idx1 < (int)keys.size(); ++idx1)
@@ -239,36 +258,44 @@ double compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matc
                 continue;
 
             double sigma2 = 1;
-            if(automatic)
-            {
-               sigma2 = std::min(sigma2,std::min(static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->var, static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->var)); 
-            }
-
+            bool flipped = patch_comparison(
+                        static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->gradx,
+                        static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->grady,
+                        static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->gradx,
+                        static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->grady,
+                        ps, c, sigma2*tau, true);
             // Try to match both descriptors and when one if flipped 
             if(patch_comparison(
                         static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->gradx,
                         static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->grady,
                         static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->gradx,
                         static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->grady,
-                        ps, c, sigma2*tau, false) ||
-                    patch_comparison(
-                        static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->gradx,
-                        static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->grady,
-                        static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->gradx,
-                        static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->grady,
-                        ps, c, sigma2*tau, true))
+                        ps, c, sigma2*tau, false) || flipped)
             {
+                //save(static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->gradx, ps, c, "patch1_x.tiff");
+                //save(static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->grady, ps, c, "patch1_y.tiff");
+                //save(static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->gradx, ps, c, "patch2_x.tiff");
+                //save(static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->grady, ps, c, "patch2_y.tiff");
+
                 Keypoint_simple k1, k2;
 
                 k1.x = keys[idx1]->x;
                 k1.y = keys[idx1]->y;
                 k1.scale = keys[idx1]->KPvec[i1].scale;
                 k1.angle = keys[idx1]->KPvec[i1].angle;
+                k1.mean[0] = static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->mean[0];
+                k1.mean[1] = static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->mean[1];
+                k1.mean[2] = static_cast<keypoint*>(keys[idx1]->KPvec[i1].kp_ptr)->mean[2];
+                k1.flipped = false;
 
                 k2.x = keys[idx2]->x;
                 k2.y = keys[idx2]->y;
                 k2.scale = keys[idx2]->KPvec[i2].scale;
                 k2.angle = keys[idx2]->KPvec[i2].angle;
+                k2.mean[0] = static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->mean[0];
+                k2.mean[1] = static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->mean[1];
+                k2.mean[2] = static_cast<keypoint*>(keys[idx2]->KPvec[i2].kp_ptr)->mean[2];
+                k2.flipped = flipped;
 
                 matchings.push_back( Matching(k1,k2) );
                 stopped = true;

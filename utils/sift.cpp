@@ -83,7 +83,7 @@ double step_sigma = -1.0;
 /** Label for pixels with undefined gradient. */
 #define NOTDEF -1024.0
 
-//#define BICUBIC
+#define BICUBIC
 
 /** Returns the value of an image at given coordinates, zero when of domain.
 */
@@ -239,7 +239,7 @@ void gradient(double * image, int X, int Y, int C, double** gradx, double** grad
 
 
 /*----------------------------------------------------------------------------*/
-double grad(double x, double y, double theta, double sigma, float * blur, int XX, int YY, int C, int X, int Y, siftPar &par, double** grad_x, double** grad_y)
+void grad(double x, double y, double theta, double sigma, float * blur, int XX, int YY, int C, int X, int Y, siftPar &par, double** grad_x, double** grad_y, double mean[3])
 {
     double step = sigma*par.OriSigma;//or InitSigma
     if (step_sigma>0)
@@ -248,21 +248,18 @@ double grad(double x, double y, double theta, double sigma, float * blur, int XX
 
     patch = extract_rectangle(blur,XX,YY,C,x,y,theta,step,X,Y);
 
-    // Compute the variance of the descriptor
-    double mean=0, var=0;
-    for(int i = 0; i < X*Y; ++i)
+    //Compute the mean of the patch
+    for(int c = 0; c < C; ++c)
     {
-        mean += patch[i];
-        var += patch[i]*patch[i];
+        mean[c] = 0;
+        for(int i = 0; i < X*Y; ++i)
+            mean[c] += patch[i + c*X*Y];
+        mean[c] /= X*Y;
     }
-    mean /= X*Y;
-    var /= (X*Y-1);
-    var -= (X*Y) / (X*Y-1) * mean * mean;
 
     gradient(patch,X,Y,C, grad_x, grad_y);
 
     free( (void *) patch );
-    return var;
 }
 
 void default_sift_parameters(siftPar &par)
@@ -273,10 +270,10 @@ void default_sift_parameters(siftPar &par)
     par.InitSigma = 1.6;
     par.BorderDist = 5; 
     par.Scales = 3;
-    par.PeakThresh = 255.0 * 0.04 / 3.0;
+    par.PeakThresh = 255.0 * 0.03 / 3.0;
     par.EdgeThresh = 0.06; 
     par.EdgeThresh1 = 0.08; 
-    par.TensorThresh = 0.08;
+    par.TensorThresh = 0.04;
     par.OriBins  = 36;
     par.OriSigma = 1.5;
     par.OriHistThresh = 0.8;
@@ -584,7 +581,7 @@ void FindMaxMin(
                     map, octSize, keys, 5,par);	
                     }
                     */
-                    if (LocalMaxMin(val, dogs[s-1], r, c) && LocalMaxMin(val, dogs[s], r, c) && LocalMaxMin(val, dogs[s+1], r, c) && NotOnEdge(dogs[s], r, c, octSize,par))
+                    if (LocalMaxMin(val, dogs[s-1], r, c) && LocalMaxMin(val, dogs[s], r, c) && LocalMaxMin(val, dogs[s+1], r, c))// && NotOnEdge(dogs[s], r, c, octSize,par))
                     {
                         partialcounter++;
                         //if (DEBUG) printf("%d:  (%d,%d,%d)  val: %f\n",partialcounter, s,r,c,val);
@@ -1004,9 +1001,9 @@ void MakeKeypoint(const flimage& blur,
     newkeypoint.scale = octSize * octScale;	/* scale */
     newkeypoint.angle = angle;		/* orientation */
     MakeKeypointSample(newkeypoint,_grad,ori,octScale,octRow,octCol,par);
-    newkeypoint.var = grad(octCol, octRow, newkeypoint.angle, octScale, blur.getColorPlane(), blur.nwidth(), 
+    grad(octCol, octRow, newkeypoint.angle, octScale, blur.getColorPlane(), blur.nwidth(), 
             blur.nheight(), blur.nchannels(), NewOriSize1, NewOriSize1, 
-            par, &newkeypoint.gradx, &newkeypoint.grady);
+            par, &newkeypoint.gradx, &newkeypoint.grady, newkeypoint.mean);
     newkeypoint.octscale = octScale;
     newkeypoint.octcol = octCol;
     newkeypoint.octrow = octRow;
