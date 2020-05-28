@@ -7,11 +7,11 @@ ROBUST COPY-MOVE FORGERY DETECTION BY FALSE ALARM CONTROL
 OVERVIEW
 --------
 
-This source code provides an implementation of "T. Ehret, ROBUST COPY-MOVE FORGERY 
+This source code provides an implementation (with new improvements) of "T. Ehret, ROBUST COPY-MOVE FORGERY 
 DETECTION BY FALSE ALARM CONTROL, Arxiv 2019" available [here](https://arxiv.org/pdf/1906.00649.pdf).
 Please cite it if you use this code as part of your research.
 The structure of this code is derived from 
-[Fast Image Matching by Affine Simulation](https://github.com/rdguez-mariano/fast_imas_IPOL).
+[Fast Image Matching by Affine Simulation](https://github.com/rdguez-mariano/fast_imas_IPOL). It also uses [an improved Inverse Compositional Algorithm](http://www.ipol.im/pub/art/2018/222/) to compute masks.
 
 COMPILATION
 -----------
