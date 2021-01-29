@@ -86,7 +86,8 @@ typedef std::vector<Matching> Matchingslist;
  * @param tau: the threshold for the matching, if automatic is true it corresponds to the number of false alarm
  * @param automatic: if true, the threshold is estmated using the NFA formula using tau as number of false alarm
  **/
-double perform_matching(int channels, std::vector<float>& image, int w, int h, std::vector<float>& data, Matchingslist& matchings, int ps, float tau, bool automatic);
+double perform_matching(int channels, std::vector<float>& image, int w, int h, std::vector<float>& data, Matchingslist& matchings, int ps, float tau, bool automatic, bool verbose=false);
+
 
 /**
  * @brief Compute matches between precomputed keypoints.
@@ -100,7 +101,7 @@ double perform_matching(int channels, std::vector<float>& image, int w, int h, s
  *
  * @return The total number of matches
  **/
-double compute_matches(int c, std::vector<KeyPoint *> &keys, Matchingslist &matchings, int ps, float tau, bool automatic);
+double compute_matches(int c, std::vector<KeyPoint *> &keys, Matchingslist &matchings, int ps, float tau, bool automatic, bool verbose=false);
 
 /**
  * @brief Computes all keypoints of a given image.

@@ -11,10 +11,6 @@
  */
 
 #include "matching.h"
-extern "C"{
-#include "utils/iio.h"
-}
-#include "utils/drawing.h"
 
 #define ABS(x)    (((x) > 0) ? (x) : (-(x)))
 
@@ -46,10 +42,7 @@ void compute_local_descriptor_keypoints(vector<float>& queryImg, int w, int h, i
         KPs[i].kp_ptr = &((*keys)[i]);
         KPs[i].scale = (*keys)[i].scale;
         KPs[i].angle = (*keys)[i].angle;
-
-        draw_square(outimg, (int)KPs[i].x, (int)KPs[i].y, (int)(ps/2 * KPs[i].scale), (int)(ps/2 * KPs[i].scale), 0, w, h);
     }
-    iio_save_image_float_vec("keys.tiff", outimg, w, h, 1);
 
 }
 
@@ -218,20 +211,11 @@ bool patch_comparison(double * grad_x_1, double * grad_y_1, double * grad_x_2, d
     return true;
 }
 
-void save(double* patch, int ps, int c, char* path)
-{
-    double* out = new double[(ps-2)*(ps-2)*c];
-    for(int x=1; x<(ps-1); ++x)
-    for(int y=1; y<(ps-1); ++y)
-    for(int ch=0; ch<c; ++ch)
-        out[(y-1)*(ps-2)*c+(x-1)*c+ch] = patch[x + y*ps + ch*ps*ps];
-    iio_save_image_double_vec(path, out, ps-2, ps-2, c);
-}
-
-double compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchings, int ps, float epsilon, bool automatic)
+double compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matchings, int ps, float epsilon, bool automatic, bool verbose)
 {  	
     int tstart = time(0);
-    printf("Keypoints matching...\n");
+    if(verbose)
+        printf("Keypoints matching...\n");
 
     double tau;
     // Automatic estimation of the threshold if necessary
@@ -239,7 +223,8 @@ double compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matc
         tau = 2*stats::qchisq(pow(exp(epsilon)/(keys.size()*keys.size()), 1./((ps-2)*(ps-2)*c)), 1);
     else
         tau = epsilon;
-    printf("tau %f\n", tau);
+    if(verbose)
+        printf("tau %f\n", tau);
 
     // Test every pair of descriptors
     for (int idx1 = 0; idx1 < (int)keys.size(); ++idx1)
@@ -304,13 +289,16 @@ double compute_matches(int c, std::vector<KeyPoints*>& keys, Matchingslist &matc
         }
     }
 
-    printf("   %d matches found.\n", (int) matchings.size());
-    printf("Matching accomplished in %ld seconds.\n\n", (time(0) - tstart));
+    if(verbose)
+    {
+        printf("   %d matches found.\n", (int) matchings.size());
+        printf("Matching accomplished in %ld seconds.\n\n", (time(0) - tstart));
+    }
     return tau;
 }
 
 
-double perform_matching(int channels, vector<float>& image, int w, int h, vector<float>& data, Matchingslist& matchings, int ps, float tau, bool automatic)
+double perform_matching(int channels, vector<float>& image, int w, int h, vector<float>& data, Matchingslist& matchings, int ps, float tau, bool automatic, bool verbose)
 {
     // Compute keypoints
     std::vector<KeyPoints*> keys;
@@ -320,12 +308,15 @@ double perform_matching(int channels, vector<float>& image, int w, int h, vector
 
     int tstart = time(0);
     num_keys = compute_keypoints(image, w, h, channels, keys, ps);
-    printf("%d keypoints have been found\n", num_keys);
-    printf("Keypoints computation accomplished in %ld seconds.\n \n", time(0) - tstart);
+    if(verbose)
+    {
+        printf("%d keypoints have been found\n", num_keys);
+        printf("Keypoints computation accomplished in %ld seconds.\n \n", time(0) - tstart);
+    }
 
 
     // Match keypoints
-    double threshold = compute_matches(channels, keys, matchings, ps, tau, automatic);
+    double threshold = compute_matches(channels, keys, matchings, ps, tau, automatic, verbose);
 
     // Generate data matrix: there are eight rows of info
     for ( int i = 0; i < (int) matchings.size(); i++ )
@@ -340,12 +331,17 @@ double perform_matching(int channels, vector<float>& image, int w, int h, vector
         data.push_back(ptr_in->second.scale);
         data.push_back(ptr_in->second.angle);
     }
-    printf("Done.\n\n");
 
-    if(matchings.size() > 0)
-        printf("This image IS forged\n");
-    else
-        printf("This image IS NOT forged\n");
+    if(verbose)
+        printf("Done.\n\n");
+
+    if(verbose)
+    {
+        if(matchings.size() > 0)
+            printf("This image IS forged\n");
+        else
+            printf("This image IS NOT forged\n");
+    }
 
     keys.clear();
     return threshold;

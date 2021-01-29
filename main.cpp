@@ -378,7 +378,7 @@ int main(int argc, char **argv)
     // Perform matching
     Matchingslist matchings;
     vector< float > data;
-    double threshold = perform_matching(c, image, w, h, data, matchings, ps, tau, automatic);
+    double threshold = perform_matching(c, image, w, h, data, matchings, ps, tau, automatic, true);
     if (visual_output_path != "") 
         write_images_matches(c, image, ps, w, h, matchings, visual_output_path);
 
