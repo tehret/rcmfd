@@ -1,5 +1,4 @@
 import iio
-import rcmfd
 from rcmfd import rcmfd, NULL, STR, wrap
 import numpy as np
 
