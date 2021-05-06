@@ -3,6 +3,9 @@ from rcmfd import rcmfd, NULL, STR, wrap
 import numpy as np
 
 im = iio.read('data/forged.tif').astype(np.float32)
+# Remove extra transparency channels 
+if im.shape[2] > 3:
+    im = im[:,:,:3]
 ps = 8
 tau = 1.
 automatic = True
