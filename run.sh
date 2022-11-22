@@ -10,9 +10,9 @@ eps=$5
 
 # Do the forgery detection
 if [ "$auto" = True ]; then
-    main -im input_0.png -ps $ps -gs $gs -auto true -tau $eps
+    main -im input_0.png -ps $ps -gs $gs -auto true -tau $eps -vo output.png
 else
-    main -im input_0.png -ps $ps -gs $gs -auto false -tau $tau
+    main -im input_0.png -ps $ps -gs $gs -auto false -tau $tau -vo output.png
 fi;
 
 # Check if something has been detected
