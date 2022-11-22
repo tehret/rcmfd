@@ -11,7 +11,7 @@ RUN mkdir -p $bin
 WORKDIR $bin
 COPY . .
 RUN mkdir build && cd build && cmake .. && make
-RUN mv build/main ${bin}/
+RUN mv build/bin/main ${bin}/
 
 # the execution will happen in the folder /workdir/exec
 # it will be created by IPOL
