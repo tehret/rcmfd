@@ -21,7 +21,7 @@ matches=`wc -l < data_matches.csv`
 # Produce the final results
 if [ "$matches" -gt 1 ]; then
     echo "isforgery=1" > algo_info.txt
-    echo "This image IS a forgery" > result.txt
+    echo "This image is a forgery" > result.txt
 else #[ "$Type" == 2 ]; then
-    echo "This image IS NOT a forgery" > result.txt
+    echo "No suspicious copy-move detected in this image." > result.txt
 fi;
